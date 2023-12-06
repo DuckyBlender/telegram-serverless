@@ -85,35 +85,43 @@ def lambda_handler(event, context):
 
     # Check if message has URL or audio
     # This is example request for a message with audio
-    if 'voice' in body['message']:
-        file_id = body['message']['voice']['file_id']
-        file_path = download_audio(file_id)
-        if file_path:
-            transcript = process_audio(file_path)
-            result = transcript
-
+    # Check if 'message' is in body
+    if 'message' in body:
+        # Check if 'voice' is in 'message'
+        if 'voice' in body['message']:
+            file_id = body['message']['voice']['file_id']
+            file_path = download_audio(file_id)
+            if file_path:
+                transcript = process_audio(file_path)
+                result = transcript
+            else:
+                print("An error occurred while processing the audio")
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps({"message": "An error occurred"})
+                }
+        # Check if 'text' is in 'message'
+        elif 'text' in body['message']:
+            message = body['message']['text']
+            if is_valid_url(message):
+                short_url = shorten_url(message)
+                result = short_url
+            else:
+                print("Not a valid URL. Abandoning ship.")
+                return {
+                    "statusCode": 200,
+                }
         else:
-            print("An error occurred while processing the audio")
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"message": "An error occurred"})
-            }
-
-    # This is example request for a message with URL
-    elif 'text' in body['message']:
-        message = body['message']['text']
-        if is_valid_url(message):
-            short_url = shorten_url(message)
-            #print(f"The short URL is: {short_url}")
-            result = short_url
-        else:
-            print("Not a valid URL. Abandoning ship.")
+            print("Not a valid message. Abandoning ship.")
+            print("This is the full telegram request: ")
+            print(body)
             return {
                 "statusCode": 200,
             }
-
     else:
-        print("Not a valid message. Abandoning ship.")
+        print("'message' key not found in the body.")
+        print("This is the full telegram request: ")
+        print(body)
         return {
             "statusCode": 200,
         }
@@ -123,10 +131,12 @@ def lambda_handler(event, context):
     response_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
     payload = {
         'chat_id': body['message']['chat']['id'],
-        'text': result
+        'text': result,
+        'reply_to_message_id': body['message']['message_id']  # Add this line to include the reply_to_message_id
     }
     r = requests.post(response_url, json=payload)
     print(f"Response: {r.status_code}")
     return {
         "statusCode": 200,
     }
+
